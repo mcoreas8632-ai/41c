@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sistema 41C</title>
+
+<style>
+body {
+  margin: 0;
+  background: black;
+  color: #0f0;
+  font-family: monospace;
+}
+
+#contenedor {
+  position: relative;
+  height: 100vh;
+}
+
+video, canvas {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+#overlay {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  background: rgba(0,0,0,0.6);
+  padding: 8px;
+  border: 1px solid #0f0;
+}
+
+#linea {
+  position: absolute;
+  top: 55%;
+  width: 100%;
+  height: 2px;
+  background: red;
+}
+</style>
+</head>
+
+<body>
+
+<div id="contenedor">
+  <video id="camara" autoplay playsinline></video>
+  <canvas id="canvas"></canvas>
+
+  <div id="linea"></div>
+
+  <div id="overlay">
+    <div><strong>SISTEMA 41C</strong></div>
+    <div>● REC</div>
+    <div id="hora">--</div>
+    <div>PERSONAS: <span id="contador">0</span></div>
+    <div>LAT: <span id="lat">--</span></div>
+    <div>LON: <span id="lon">--</span></div>
+  </div>
+</div>
+
+<script>
+const video = document.getElementById("camara");
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
+
+let contador = 0;
+let frameAnterior = null;
+let cruzo = false;
+
+// ===== CAMARA TRASERA =====
+navigator.mediaDevices.getUserMedia({
+  video: { facingMode: "environment" },
+  audio: false
+}).then(stream => {
+  video.srcObject = stream;
+  video.onloadedmetadata = () => {
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    detectar();
+  };
+});
+
+// ===== DETECCION SIMPLE =====
+function detectar() {
+  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+  const frame = ctx.getImageData(0, 0, canvas.width, canvas.height);
+
+  if (frameAnterior) {
+    let movimiento = 0;
+    const lineaY = Math.floor(canvas.height * 0.55);
+
+    for (let i = lineaY * canvas.width * 4; i < (lineaY + 10) * canvas.width * 4; i += 4) {
+      const diff =
+        Math.abs(frame.data[i] - frameAnterior.data[i]) +
+        Math.abs(frame.data[i+1] - frameAnterior.data[i+1]) +
+        Math.abs(frame.data[i+2] - frameAnterior.data[i+2]);
+      if (diff > 60) movimiento++;
+    }
+
+    if (movimiento > 200 && !cruzo) {
+      contador++;
+      document.getElementById("contador").textContent = contador;
+      cruzo = true;
+    }
+
+    if (movimiento < 50) cruzo = false;
+  }
+
+  frameAnterior = frame;
+  requestAnimationFrame(detectar);
+}
+
+// ===== HORA =====
+function actualizarHora() {
+  document.getElementById("hora").textContent =
+    new Date().toLocaleString();
+}
+setInterval(actualizarHora, 1000);
+actualizarHora();
+
+// ===== GPS =====
+navigator.geolocation.watchPosition(
+  pos => {
+    document.getElementById("lat").textContent =
+      pos.coords.latitude.toFixed(6);
+    document.getElementById("lon").textContent =
+      pos.coords.longitude.toFixed(6);
+  },
+  err => console.log(err),
+  { enableHighAccuracy: true }
+);
+</script>
+
+</body>
+</html>
